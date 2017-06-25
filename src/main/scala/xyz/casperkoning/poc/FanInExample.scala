@@ -55,7 +55,7 @@ object FanInExample {
           override def apply(key: Key, part: MergePart, aggregate: MergeParts): MergeParts = aggregate.upsertPart(part)
         },
         mergePartsSerde,
-        "merge-state"
+        "merge-parts"
       )
       .filter((_, mergeParts) => mergeParts.containsAllRequiredParts)
       .mapValues[MergeResult](_.mergeToResult)
