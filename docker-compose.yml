@@ -1,0 +1,68 @@
+---
+version: '2'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:3.2.1
+    hostname: zookeeper
+    ports:
+      - "2181:2181"
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:3.2.1
+    hostname: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "9093:9093"
+    environment:
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:9093
+
+  schema_registry:
+    image: confluentinc/cp-schema-registry:3.2.1
+    hostname: schema_registry
+    depends_on:
+      - zookeeper
+      - kafka
+    ports:
+      - "8081:8081"
+    environment:
+      SCHEMA_REGISTRY_HOST_NAME: schema_registry
+      SCHEMA_REGISTRY_KAFKASTORE_CONNECTION_URL: 'zookeeper:2181'
+
+  fan_in_example:
+    image: hseeberger/scala-sbt
+    volumes:
+      - .:/work
+    depends_on:
+      - zookeeper
+      - kafka
+      - schema_registry
+    command: bash -c "cd /work && sbt 'runMain xyz.casperkoning.poc.FanInExample'"
+
+  example_producer:
+    image: hseeberger/scala-sbt
+    volumes:
+      - .:/work
+    depends_on:
+      - zookeeper
+      - kafka
+      - schema_registry
+      - fan_in_example
+    command: bash -c "cd /work && sbt 'runMain xyz.casperkoning.poc.ExampleProducer'"
+
+  avro_console_consumer:
+    image: confluentinc/cp-schema-registry:3.2.1
+    depends_on:
+      - zookeeper
+      - kafka
+      - schema_registry
+      - fan_in_example
+      - example_producer
+    command: kafka-avro-console-consumer --from-beginning --topic merge-results --bootstrap-server kafka:9092 --property schema.registry.url=http://schema_registry:8081
